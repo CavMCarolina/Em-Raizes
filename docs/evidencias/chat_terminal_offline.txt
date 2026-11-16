@@ -1,0 +1,90 @@
+Guardião · Em Raízes — modo offline
+Dados do morro simulados. Em emergência ligue 199. Digite /ajuda para ver os comandos.
+
+Você: Como envio o drone?
+Guardião: *(modo offline — respostas por regras e pelo manual, sem IA generativa)*
+
+- FROTA: Drone de mapeamento (DRN-01) — na_base, bateria 100%
+- FROTA: Robô jardineiro (ROB-01) — na_base, bateria 100%
+- ROBÔ LIBERADO: sim
+- AÇÃO SUGERIDA (media): Plantar capim-vetiver — 51 células com solo exposto e risco; começar pelas 8 prioritárias.
+- PLANTIO: 51 células (17848 mudas de capim-vetiver; 11 só com equipe técnica). IRRIGAÇÃO: 0 células (0 L).
+
+**Do manual — Como enviar o drone:**
+Toque em "Enviar drone" na tela Início. O drone faz um voo de mapeamento (cerca de 12 segundos na simulação)
+e, ao terminar, o mapa, o risco, os alertas e as missões do robô são recalculados com os dados novos.
+O drone precisa estar na base e com pelo menos 30% de bateria; ele recarrega sozinho na base.
+O drone pode voar mesmo com alerta ativo, porque o monitoramento é ainda mais importante na chuva.
+Envie o drone sempre que o clima mudar ou depois de plantar/irrigar, para medir o efeito.
+   [modo offline · 1º pedaço 0.01s · total 0.01s · janela ~1287 tokens]
+
+Você: Por que o botão Irrigar foi recusado?
+Guardião: *(modo offline — respostas por regras e pelo manual, sem IA generativa)*
+
+- FROTA: Drone de mapeamento (DRN-01) — na_base, bateria 100%
+- FROTA: Robô jardineiro (ROB-01) — na_base, bateria 100%
+- ROBÔ LIBERADO: sim
+- AÇÃO SUGERIDA (media): Plantar capim-vetiver — 51 células com solo exposto e risco; começar pelas 8 prioritárias.
+- PLANTIO: 51 células (17848 mudas de capim-vetiver; 11 só com equipe técnica). IRRIGAÇÃO: 0 células (0 L).
+- PLANTIO: 51 células (17848 mudas de capim-vetiver; 11 só com equipe técnica). IRRIGAÇÃO: 0 células (0 L).
+
+**Do manual — Irrigação: quando o sistema manda regar:**
+O botão "Irrigar mudas" só rega células onde TODAS as condições valem: umidade do solo abaixo de 18%
+(a meta é chegar a 25%), sem casas, risco baixo ou moderado e sem chuva prevista (menos de 10 mm em 24 h).
+Uma encosta encharcada ou com risco alto NUNCA é irrigada, porque água a mais aumenta o risco de deslizamento.
+Por isso, em dias de chuva o robô não encontra células para irrigar e o comando é recusado com o código
+sem_alvos_validos. A nova umidade aparece no próximo voo do drone.
+   [modo offline · 1º pedaço 0.01s · total 0.01s · janela ~1709 tokens · busca: “Como envio o drone? Por que o botão Irrigar foi recusado?”]
+
+Você: e se fosse tempo seco?
+Guardião: *(modo offline — respostas por regras e pelo manual, sem IA generativa)*
+
+- PLANTIO: 51 células (17848 mudas de capim-vetiver; 11 só com equipe técnica). IRRIGAÇÃO: 0 células (0 L).
+
+**Do manual — Irrigação: quando o sistema manda regar:**
+O botão "Irrigar mudas" só rega células onde TODAS as condições valem: umidade do solo abaixo de 18%
+(a meta é chegar a 25%), sem casas, risco baixo ou moderado e sem chuva prevista (menos de 10 mm em 24 h).
+Uma encosta encharcada ou com risco alto NUNCA é irrigada, porque água a mais aumenta o risco de deslizamento.
+Por isso, em dias de chuva o robô não encontra células para irrigar e o comando é recusado com o código
+sem_alvos_validos. A nova umidade aparece no próximo voo do drone.
+   [modo offline · 1º pedaço 0.01s · total 0.01s · janela ~1863 tokens · busca: “Por que o botão Irrigar foi recusado? e se fosse tempo seco?”]
+
+Você: Tem uma trinca nova na parede e ouvi um estalo
+Guardião: *(modo offline — respostas por regras e pelo manual, sem IA generativa)*
+
+**Emergência — se isso está acontecendo agora:** saia para um local seguro e ligue para a Defesa Civil 199 · Bombeiros 193.
+
+
+
+**Do manual — Sinais de perigo no morro:**
+Procure a Defesa Civil se notar: trincas novas no chão ou nas paredes, portas e janelas que começam a emperrar,
+muros, postes ou árvores inclinando, água barrenta descendo ou minando do chão, estalos ou barulho de terra,
+degraus ou "barrigas" que aparecem no terreno. Durante chuva forte, se notar qualquer um desses sinais,
+saia de casa e vá para um local seguro antes de ligar.
+   [modo offline · 1º pedaço 0.01s · total 0.01s · janela ~2061 tokens]
+
+Você: /historico
+  user: Como envio o drone?
+  assistant: *(modo offline — respostas por regras e pelo manual, sem IA generativa)*
+
+- FROTA: Drone de mapeamento (DRN-01) — na_base, bateria 100%
+- FROTA: Robô jardineiro
+  user: Por que o botão Irrigar foi recusado?
+  assistant: *(modo offline — respostas por regras e pelo manual, sem IA generativa)*
+
+- FROTA: Drone de mapeamento (DRN-01) — na_base, bateria 100%
+- FROTA: Robô jardineiro
+  user: e se fosse tempo seco?
+  assistant: *(modo offline — respostas por regras e pelo manual, sem IA generativa)*
+
+- PLANTIO: 51 células (17848 mudas de capim-vetiver; 11 só com equipe técnica). IRRIGA
+  user: Tem uma trinca nova na parede e ouvi um estalo
+  assistant: *(modo offline — respostas por regras e pelo manual, sem IA generativa)*
+
+**Emergência — se isso está acontecendo agora:** saia para um local seguro e ligue par
+
+Você: /tokens
+Histórico: ~918 tokens (limite 1200).
+
+Você: /sair
+Até logo!

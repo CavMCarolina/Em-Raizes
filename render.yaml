@@ -1,0 +1,38 @@
+# Blueprint do Render: um serviço web com a imagem Docker do projeto (API em /api + app em /).
+# Quem publica é o GitHub Actions, só depois de todos os testes passarem (autoDeployTrigger: off + Deploy Hook).
+# Passo a passo: docs/DEPLOY.md
+services:
+  - type: web
+    name: em-raizes
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    region: virginia # a região do Render mais próxima do Brasil
+    branch: main
+    autoDeployTrigger: "off"
+    healthCheckPath: /api/saude
+    envVars:
+      - key: EM_RAIZES_AMBIENTE
+        value: producao
+      - key: EM_RAIZES_ADMIN_USUARIO
+        value: admin
+      # segredos: o Render pede o valor no painel ao criar o serviço (nunca no Git)
+      - key: EM_RAIZES_ADMIN_SENHA
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: EM_RAIZES_VAPID_PRIVADA # opcional: sem ela, só as notificações no celular ficam desligadas
+        sync: false
+      - key: EM_RAIZES_VAPID_CONTATO # ex.: mailto:seu-email@exemplo.com
+        sync: false
+      # gerado pelo próprio Render (valor aleatório de 256 bits)
+      - key: EM_RAIZES_SEGREDO_JWT
+        generateValue: true
+      # só modelos gratuitos
+      - key: OPENROUTER_MODEL
+        value: google/gemma-4-31b-it:free
+      - key: OPENROUTER_FALLBACK_MODELS
+        value: nvidia/nemotron-3.5-super-vl:free,google/gemma-4-26b-a4b-it:free
+      - key: EM_RAIZES_SIM_CENARIO
+        value: real

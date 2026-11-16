@@ -1,0 +1,142 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (lint + testes)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - run: pip install -e "./backend[dev]"
+      - run: ruff check backend/src backend/tests
+      - run: ruff format --check backend/src backend/tests
+      - run: pytest backend -q
+
+  frontend:
+    name: Frontend (tipos + testes + build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  notebook:
+    name: Notebook (executa em modo offline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - run: pip install -e "./backend[notebook]"
+      # Executa numa cópia (não sobrescreve as saídas versionadas para o professor).
+      - run: jupyter nbconvert --to notebook --execute --ExecutePreprocessor.timeout=300 --output /tmp/notebook_ci.ipynb notebooks/Aula09.3_Chat_Guardiao.ipynb
+
+  docker:
+    name: Imagem Docker
+    needs: [backend, frontend]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build e teste de saúde
+        run: |
+          docker build --build-arg EM_RAIZES_COMMIT=${GITHUB_SHA} -t em-raizes:ci .
+          docker run -d --name app -p 8000:8000 \
+            -e EM_RAIZES_ADMIN_SENHA=ci-senha -e EM_RAIZES_SEGREDO_JWT=ci-segredo-com-tamanho-suficiente-123 em-raizes:ci
+          for i in $(seq 1 30); do curl -fs http://localhost:8000/api/saude && break; sleep 1; done
+          curl -fs http://localhost:8000/api/saude | grep -q "\"commit\":\"${GITHUB_SHA}\""
+          curl -fs http://localhost:8000/ | grep -q '<div id="raiz">'
+          docker logs app
+      # Publica a imagem no GitHub Container Registry só quando uma tag v* for criada (ex.: v0.2.0).
+      - name: Login no GHCR
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publicar imagem
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          IMG=ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_REF_NAME}
+          docker tag em-raizes:ci "$IMG"
+          docker push "$IMG"
+
+  # CD: só roda num push na main e só depois que TODOS os jobs acima passaram.
+  # Pede ao Render o deploy deste commit exato e espera o site no ar mostrá-lo em /api/saude.
+  # Sem o secret RENDER_DEPLOY_HOOK_URL o job só avisa e termina (o CI continua verde). Veja docs/DEPLOY.md.
+  deploy:
+    name: Deploy (Render)
+    needs: [backend, frontend, notebook, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-producao
+      cancel-in-progress: false
+    env:
+      DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+      APP_URL: ${{ vars.APP_URL }}
+    steps:
+      - name: Deploy não configurado
+        if: env.DEPLOY_HOOK == ''
+        run: echo "::notice::Deploy pulado. Defina o secret RENDER_DEPLOY_HOOK_URL e a variável APP_URL (docs/DEPLOY.md)."
+      - name: Pedir ao Render o deploy deste commit
+        if: env.DEPLOY_HOOK != ''
+        run: curl -fsS -X POST "${DEPLOY_HOOK}&ref=${GITHUB_SHA}" -o /dev/null
+      - name: Esperar o site no ar com este commit
+        if: env.DEPLOY_HOOK != '' && env.APP_URL != ''
+        timeout-minutes: 25
+        run: |
+          for i in $(seq 1 90); do
+            no_ar=$(curl -fsS --max-time 60 "${APP_URL%/}/api/saude" \
+              | python3 -c 'import json, sys; print(json.load(sys.stdin).get("commit") or "")' || true)
+            if [ "$no_ar" = "$GITHUB_SHA" ]; then echo "No ar: $no_ar"; exit 0; fi
+            echo "Aguardando o deploy ($i/90). No ar agora: ${no_ar:-sem resposta}"
+            sleep 15
+          done
+          echo "::error::O site não mostrou o commit $GITHUB_SHA a tempo. Veja os logs do deploy no Render."
+          exit 1
+      - name: Teste de fumaça no site publicado
+        if: env.DEPLOY_HOOK != '' && env.APP_URL != ''
+        run: |
+          curl -fsS "${APP_URL%/}/" | grep -q '<div id="raiz">'
+          curl -fsS "${APP_URL%/}/api/info" | python3 -c '
+          import json, sys
+          info = json.load(sys.stdin)
+          assert info["ambiente"] == "producao", info["ambiente"]
+          assert info["login_habilitado"], "login desativado: defina EM_RAIZES_ADMIN_SENHA no Render"
+          print("ok:", info["nome_app"], info["versao"], "| IA online:", info["ia_online"], "|", info["modelo_ia"])
+          '

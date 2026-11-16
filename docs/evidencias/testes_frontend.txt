@@ -1,0 +1,9 @@
+
+ RUN  v5.1.0 C:/Users/Usuario/Desktop/FIAP/Em-Raizes/frontend
+
+
+ Test Files  4 passed (4)
+      Tests  15 passed (15)
+   Start at  03:05:46
+   Duration  2.16s (environment 85%, import 11%, transform 2%, tests 1%)
+

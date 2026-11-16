@@ -1,0 +1,17 @@
+{
+  "name": "Em Raízes · Administração",
+  "short_name": "Em Raízes",
+  "description": "Comandos do drone e do robô jardineiro para prevenir deslizamentos (MVP com dados simulados)",
+  "lang": "pt-BR",
+  "start_url": "/#/inicio",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f3f5f2",
+  "theme_color": "#1b5e20",
+  "icons": [
+    { "src": "/icone.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

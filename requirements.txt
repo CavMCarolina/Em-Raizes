@@ -1,0 +1,3 @@
+# Ambiente completo (backend + testes + notebook). Uso: pip install -r requirements.txt
+# As dependências de verdade estão em backend/pyproject.toml.
+-e ./backend[dev,notebook]
