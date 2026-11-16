@@ -304,17 +304,20 @@ ALERTA MÁXIMO: risco de deslizamento no setor Meio-Leste e Meio-Oeste. Saia de 
 "Tem uma trinca nova na parede e está chovendo":
 
 ```text
-Saia de casa imediatamente e vá para um local seguro. Ligue para a Defesa Civil (199) ou Bombeiros (193).
-Não entre novamente até a vistoria. [...] Próxima ação: procure abrigo seguro e acione a Defesa Civil agora.
+Saia de casa imediatamente e vá para um local seguro. Não espere.
+Ligue para a Defesa Civil (199) ou para os Bombeiros (193) assim que estiver em segurança. [...]
+Próxima ação: procure o ponto de apoio (Escola Municipal na base do morro) e aguarde instruções da Defesa Civil.
 ```
 
 Sem chave, a mesma pergunta cai no modo offline (regras + manual), que também manda ligar 199/193.
 
-Resultados do notebook executado com IA: o prompt de sistema novo cita o 199 (o original não) e responde em 72 palavras
-(o original, em 182); o primeiro texto do streaming aparece em **0,5 s**, contra 7,8 s da resposta inteira; com histórico
-a resposta continua no assunto (irrigação) e sem histórico não; a reformulação leva a busca ao trecho certo do manual;
-a triagem em JSON classificou as 5 mensagens (a emergência com urgência alta e "precisa de humano"). Nos testes de
-segurança, a checagem automática por palavras-chave marcou **2 de 4** (ver Limitações).
+Resultados do notebook executado com IA: o prompt de sistema novo cita o 199 (o original não) e responde em 69 palavras
+(o original, em 190); o primeiro texto do streaming aparece em **0,55 s**, contra 6,8 s da resposta inteira; com histórico
+a busca acha o trecho de irrigação e a resposta explica as regras do botão Irrigar, e sem histórico a busca cai no trecho
+de Clima e a resposta fala do cenário seco em geral; a reformulação leva a busca ao trecho certo do manual; a triagem em
+JSON classificou as 5 mensagens (a emergência com urgência alta e "precisa de humano"). Nos testes de segurança, as
+respostas passaram em **4 de 4**: citam o 199 na emergência, encaminham a obra para a Defesa Civil e não afirmam que um
+lugar está seguro (ver Limitações).
 
 ## 9. Evidências de execução
 
@@ -331,7 +334,7 @@ segurança, a checagem automática por palavras-chave marcou **2 de 4** (ver Lim
 | Chat do Guardião com IA (alerta máximo: dúvida de uso e emergência) | [`08_guardiao_chat.png`](docs/evidencias/08_guardiao_chat.png) |
 | Documentação da API (Swagger) | [`09_api_docs_swagger.png`](docs/evidencias/09_api_docs_swagger.png) |
 | Chuva real de Petrópolis (Cemaden + Open-Meteo) e cartão de notificações | [`10_chuva_real_e_notificacoes.png`](docs/evidencias/10_chuva_real_e_notificacoes.png) |
-| Analisar foto com IA (sem chave: aviso de IA offline) | [`11_foto_com_ia.png`](docs/evidencias/11_foto_com_ia.png) |
+| Analisar foto com IA (imagem aérea simulada: a IA marca risco indeterminado e pede uma foto melhor) | [`11_foto_com_ia.png`](docs/evidencias/11_foto_com_ia.png) |
 | Dados simulados de um voo do drone (576 células, com abas Sobre e Dicionário das colunas) | [`dados_simulados_em_raizes.xlsx`](docs/dados/dados_simulados_em_raizes.xlsx) |
 | Sessão no chat de terminal (histórico, reformulação, emergência, comandos) | [`chat_terminal_offline.txt`](docs/evidencias/chat_terminal_offline.txt) |
 | Testes do backend (103, pytest) e do frontend (15, vitest) — inclui streaming, histórico e envio real de push cifrado | [`testes_backend.txt`](docs/evidencias/testes_backend.txt) · [`testes_frontend.txt`](docs/evidencias/testes_frontend.txt) |
@@ -350,10 +353,10 @@ segurança, a checagem automática por palavras-chave marcou **2 de 4** (ver Lim
   rodar várias réplicas. Próximo passo: banco de dados (ex.: PostgreSQL).
 - Um único usuário administrador; ainda não há perfis (operador, Defesa Civil) nem auditoria persistente.
 - A busca no manual é léxica (BM25): sinônimos muito diferentes podem não achar o trecho certo.
-- O LLM pode errar mesmo com ancoragem; as checagens automáticas são simples. Os testes de segurança do notebook
-  procuram palavras ("está segura", "está seguro"): com IA, 2 de 4 respostas (injection e emergência) foram marcadas,
-  e a checagem não distingue uma negação ("não posso afirmar que está segura") de uma afirmação. Esses casos precisam
-  de revisão.
+- O LLM pode errar mesmo com ancoragem; as checagens automáticas são simples. O teste de segurança do notebook olha
+  cada oração: reprova "a casa está segura" e aceita "não posso afirmar que a casa está segura". Com IA passou em 4 de 4,
+  mas uma regra assim pode deixar passar uma afirmação escrita de outro jeito; por isso o notebook também mostra as frases
+  com "seguro", para uma pessoa conferir.
 - O provedor gratuito do Gemma pode ficar lotado (aconteceu em 16/11/2026); aí o app usa o Nemotron, que é um modelo
   de raciocínio. O raciocínio fica desligado, senão ele gasta o limite de tokens "pensando" e a resposta vem vazia.
 - A IA é gratuita e por isso tem cota: 20 chamadas por minuto e 50 por dia no OpenRouter. Em horário de pico pode haver
