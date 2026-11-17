@@ -1,9 +1,10 @@
 import { BatteryFull, BatteryLow, BatteryMedium, BatteryWarning, Bot, CloudRain, Drone } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "../api/cliente";
 import type { Dispositivo, Estado, MissaoRobo, Recomendacao } from "../api/tipos";
 import { AcoesFrota } from "../componentes/AcoesFrota";
 import { CartaoNotificacoes } from "../componentes/CartaoNotificacoes";
+import { Seletor } from "../componentes/Seletor";
 import { Barra, Cartao, Numero, Pilula } from "../componentes/ui";
 import { useCentral } from "../contexto";
 import { corBateria, dataHora, hora, inteiro, ROTULO_DISPOSITIVO, ROTULO_TIPO } from "../util/formatos";
@@ -52,7 +53,10 @@ function CartaoDispositivo({ d, estado }: { d: Dispositivo; estado: Estado }) {
 
 function Simulacao({ estado }: { estado: Estado }) {
   const { info, executar, ocupado } = useCentral();
-  const [cenario, setCenario] = useState(estado.clima_atual.cenario);
+  const atual = estado.clima_atual.cenario;
+  const [cenario, setCenario] = useState(atual);
+  // se o clima mudar por outro caminho (outra aba, API), o seletor acompanha
+  useEffect(() => setCenario(atual), [atual]);
   const cenarios = info?.cenarios ?? {};
   return (
     <details className="cartao simulacao" data-testid="simulacao">
@@ -64,19 +68,14 @@ function Simulacao({ estado }: { estado: Estado }) {
         simulados servem para testar o app em qualquer clima. Depois de trocar, envie o drone para atualizar o mapa.
       </p>
       <div className="linha-form">
-        <select
+        {/* dropdown do próprio app, não um <select> nativo: ver o comentário em componentes/Seletor.tsx */}
+        <Seletor
           id="sel-clima"
-          data-testid="sel-clima"
-          aria-label="Fonte do clima"
-          value={cenario}
-          onChange={(e) => setCenario(e.target.value)}
-        >
-          {Object.entries(cenarios).map(([k, nome]) => (
-            <option key={k} value={k}>
-              {nome}
-            </option>
-          ))}
-        </select>
+          rotulo="Fonte do clima"
+          valor={cenario}
+          aoMudar={setCenario}
+          opcoes={Object.entries(cenarios).map(([k, nome]) => ({ valor: k, nome, detalhe: k === atual ? "atual" : undefined }))}
+        />
         <button
           type="button"
           id="btn-aplicar-clima"

@@ -29,7 +29,7 @@ export const ROTULO_TIPO: Record<TipoComando, string> = {
   recolher_robo: "Recolher robô",
   parada_emergencia: "Parada de emergência",
   liberar_frota: "Liberar frota",
-  mudar_clima: "Clima (simulação)",
+  mudar_clima: "Troca de clima",
 };
 
 export const ROTULO_STATUS: Record<StatusComando, string> = {

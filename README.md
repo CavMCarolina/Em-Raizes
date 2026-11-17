@@ -337,7 +337,7 @@ lugar está seguro (ver Limitações).
 | Analisar foto com IA (imagem aérea simulada: a IA marca risco indeterminado e pede uma foto melhor) | [`11_foto_com_ia.png`](docs/evidencias/11_foto_com_ia.png) |
 | Dados simulados de um voo do drone (576 células, com abas Sobre e Dicionário das colunas) | [`dados_simulados_em_raizes.xlsx`](docs/dados/dados_simulados_em_raizes.xlsx) |
 | Sessão no chat de terminal (histórico, reformulação, emergência, comandos) | [`chat_terminal_offline.txt`](docs/evidencias/chat_terminal_offline.txt) |
-| Testes do backend (103, pytest) e do frontend (15, vitest) — inclui streaming, histórico e envio real de push cifrado | [`testes_backend.txt`](docs/evidencias/testes_backend.txt) · [`testes_frontend.txt`](docs/evidencias/testes_frontend.txt) |
+| Testes do backend (103, pytest) e do frontend (19, vitest) — inclui streaming, histórico, envio real de push cifrado e o dropdown do clima | [`testes_backend.txt`](docs/evidencias/testes_backend.txt) · [`testes_frontend.txt`](docs/evidencias/testes_frontend.txt) |
 | Notebook executado (entrega obrigatória) | [`notebooks/Aula09.3_Chat_Guardiao.ipynb`](notebooks/Aula09.3_Chat_Guardiao.ipynb) |
 
 ## 10. Limitações

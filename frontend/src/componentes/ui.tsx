@@ -164,6 +164,13 @@ export function AvisoFlutuante({ aviso, aoFechar }: { aviso: Aviso | null; aoFec
     const t = window.setTimeout(aoFechar, aviso.tipo === "sucesso" ? 4500 : 8000);
     return () => window.clearTimeout(t);
   }, [aviso, aoFechar]);
+  // O aviso flutua sobre a tela e o toque passa por ele (CSS), para não travar o que está embaixo, como o
+  // seletor de clima no fim da tela Início. O aviso de sucesso some no primeiro toque; erro e recusa ficam.
+  useEffect(() => {
+    if (aviso?.tipo !== "sucesso") return;
+    document.addEventListener("pointerdown", aoFechar);
+    return () => document.removeEventListener("pointerdown", aoFechar);
+  }, [aviso, aoFechar]);
   if (!aviso) return null;
   const Icone = ICONE_AVISO[aviso.tipo];
   return (

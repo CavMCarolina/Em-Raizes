@@ -574,6 +574,95 @@ code {
   gap: 8px;
   margin-top: 8px;
 }
+
+/* dropdown do próprio app (componentes/Seletor.tsx), no lugar de um <select> nativo */
+.seletor {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.seletor__botao {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--borda);
+  background: var(--superficie);
+  color: var(--texto);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.seletor__botao[aria-expanded="true"] {
+  border-color: var(--marca);
+}
+.seletor__texto {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.seletor__seta {
+  flex: none;
+  transition: transform 0.15s;
+}
+.seletor__botao[aria-expanded="true"] .seletor__seta {
+  transform: rotate(180deg);
+}
+.seletor__lista {
+  position: absolute;
+  z-index: 30;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+  background: var(--superficie);
+  border: 1px solid var(--borda);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+.seletor__lista--cima {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+.seletor__opcao {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.seletor__opcao[data-destaque="true"] {
+  background: var(--superficie-2);
+}
+.seletor__opcao[aria-selected="true"] {
+  font-weight: 600;
+}
+.seletor__nome {
+  flex: 1;
+}
+.seletor__detalhe {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--fundo);
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--texto-mudo);
+  white-space: nowrap;
+}
+.seletor__marca {
+  flex: none;
+  color: var(--marca);
+}
 select,
 input {
   font: inherit;
@@ -779,6 +868,8 @@ input {
   color: #fff;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
   animation: subir 0.18s ease-out;
+  /* o toque passa pelo aviso e chega ao que está embaixo (só o botão de fechar recebe clique) */
+  pointer-events: none;
 }
 .aviso__icone {
   flex: none;
@@ -793,6 +884,7 @@ input {
 }
 .aviso .botao {
   color: #fff;
+  pointer-events: auto;
 }
 .aviso--sucesso {
   background: #1b5e20;
