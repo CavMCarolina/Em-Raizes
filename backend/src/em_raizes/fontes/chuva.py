@@ -59,9 +59,16 @@ class LeituraChuva:
     erro: str | None = None
 
 
+# Só HTTPS e só os dois serviços públicos de chuva: bloqueia file:// e qualquer outro host (SSRF).
+ORIGENS_PERMITIDAS = ("https://resources.cemaden.gov.br/", "https://api.open-meteo.com/")
+
+
 def _baixar_json(url: str, timeout: float) -> object:
+    if not url.startswith(ORIGENS_PERMITIDAS):
+        raise ValueError(f"URL fora da lista permitida: {url}")
     req = urllib.request.Request(url, headers={"User-Agent": "em-raizes-mvp/0.2 (projeto academico)"})
-    with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - URLs fixas https
+    # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
+    with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - URL validada acima (só HTTPS, 2 origens)
         return json.loads(r.read().decode("utf-8"))
 
 

@@ -23,6 +23,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     EM_RAIZES_PASTA_FRONTEND=/app/frontend \
     PORT=8000
 WORKDIR /app
+# Atualizações de segurança do Debian (o Trivy barrou a CVE-2026-85091 no zlib1g da imagem base)
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
 COPY backend/pyproject.toml backend/
 COPY backend/src backend/src
 RUN pip install ./backend && useradd --create-home --uid 10001 app

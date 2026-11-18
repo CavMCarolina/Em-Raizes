@@ -25,3 +25,17 @@ Thumbs.db
 
 # dados locais (chaves VAPID de desenvolvimento)
 .dados/
+
+# Terraform: state, variáveis e backend nunca vão para o Git
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+backend.hcl
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
