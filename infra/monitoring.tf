@@ -9,41 +9,17 @@ resource "azurerm_monitor_action_group" "email" {
   }
 }
 
-# Sinal de ouro "erros": mais de 5 respostas 5xx em 5 minutos
-resource "azurerm_monitor_metric_alert" "http_5xx" {
-  name                = "alerta-5xx-${var.project}"
+# Observação: neste ambiente a métrica Requests do Container Apps não traz as dimensões
+# statusCode/statusCodeCategory (o filtro por 4xx/5xx fica vazio). Por isso os alertas
+# usam o total de requisições e o teste de disponibilidade, que têm dados confirmados.
+
+# Alerta de segurança: pico de requisições. O uso normal fica entre 0 e 3 por minuto;
+# mais de 40 em 5 minutos indica força bruta no login ou varredura automatizada.
+resource "azurerm_monitor_metric_alert" "pico_requisicoes" {
+  name                = "alerta-pico-requisicoes-${var.project}"
   resource_group_name = azurerm_resource_group.rg.name
   scopes              = [azurerm_container_app.app.id]
-  description         = "Mais de 5 respostas HTTP 5xx em 5 minutos"
-  severity            = 1
-  frequency           = "PT1M"
-  window_size         = "PT5M"
-
-  criteria {
-    metric_namespace = "Microsoft.App/containerApps"
-    metric_name      = "Requests"
-    aggregation      = "Total"
-    operator         = "GreaterThan"
-    threshold        = 5
-
-    dimension {
-      name     = "statusCodeCategory"
-      operator = "Include"
-      values   = ["5xx"]
-    }
-  }
-
-  action {
-    action_group_id = azurerm_monitor_action_group.email.id
-  }
-}
-
-# Alerta de segurança: rajada de 4xx (ex.: tentativas de login com senha errada)
-resource "azurerm_monitor_metric_alert" "http_4xx" {
-  name                = "alerta-4xx-forca-bruta-${var.project}"
-  resource_group_name = azurerm_resource_group.rg.name
-  scopes              = [azurerm_container_app.app.id]
-  description         = "Mais de 20 respostas 4xx em 5 minutos: possível força bruta no login"
+  description         = "Mais de 40 requisições em 5 minutos: possível força bruta ou varredura"
   severity            = 2
   frequency           = "PT1M"
   window_size         = "PT5M"
@@ -53,13 +29,30 @@ resource "azurerm_monitor_metric_alert" "http_4xx" {
     metric_name      = "Requests"
     aggregation      = "Total"
     operator         = "GreaterThan"
-    threshold        = 20
+    threshold        = 40
+  }
 
-    dimension {
-      name     = "statusCodeCategory"
-      operator = "Include"
-      values   = ["4xx"]
-    }
+  action {
+    action_group_id = azurerm_monitor_action_group.email.id
+  }
+}
+
+# Sinal de ouro "erros" / disponibilidade: o /api/saude falhou no teste externo
+resource "azurerm_monitor_metric_alert" "indisponivel" {
+  name                = "alerta-indisponivel-${var.project}"
+  resource_group_name = azurerm_resource_group.rg.name
+  scopes              = [azurerm_application_insights.appi.id]
+  description         = "O /api/saude falhou no teste de disponibilidade (São Paulo e Virgínia)"
+  severity            = 1
+  frequency           = "PT1M"
+  window_size         = "PT15M"
+
+  criteria {
+    metric_namespace = "microsoft.insights/components"
+    metric_name      = "availabilityResults/availabilityPercentage"
+    aggregation      = "Average"
+    operator         = "LessThan"
+    threshold        = 90
   }
 
   action {
