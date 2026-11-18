@@ -1,0 +1,12 @@
+# Copie para terraform.tfvars (que NÃO vai para o Git) e preencha
+subscription_id = "00000000-0000-0000-0000-000000000000"
+project         = "emraizes"
+location        = "brazilsouth"
+container_image = "acremraizesxxxxx.azurecr.io/em-raizes:v1"
+alert_email     = "seu-email@exemplo.com"
+
+# Segredos do app
+admin_senha        = "troque-por-uma-senha-forte"
+openrouter_api_key = ""
+vapid_privada      = ""
+vapid_contato      = "mailto:seu-email@exemplo.com"

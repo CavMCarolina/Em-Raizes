@@ -1,0 +1,26 @@
+# Sobe a stack local com a mesma imagem de produção.
+#   cp .env.example .env   (preencha EM_RAIZES_ADMIN_SENHA e EM_RAIZES_SEGREDO_JWT)
+#   docker compose up -d --build
+#   http://localhost:8000
+services:
+  app:
+    build:
+      context: .
+      args:
+        EM_RAIZES_COMMIT: ${EM_RAIZES_COMMIT:-local}
+    image: em-raizes:local
+    ports:
+      - "8000:8000"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # Igual à nuvem: modo produção, que exige senha e segredo JWT para subir
+      EM_RAIZES_AMBIENTE: producao
+      EM_RAIZES_ADMIN_SENHA: ${EM_RAIZES_ADMIN_SENHA:?defina EM_RAIZES_ADMIN_SENHA no .env}
+      EM_RAIZES_SEGREDO_JWT: ${EM_RAIZES_SEGREDO_JWT:?defina EM_RAIZES_SEGREDO_JWT no .env}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    restart: unless-stopped
