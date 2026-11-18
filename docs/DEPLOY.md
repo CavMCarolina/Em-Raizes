@@ -1,100 +1,154 @@
-# Deploy com CI/CD (GitHub Actions + Render)
+# Deploy na Azure com CI/CD (Terraform + GitHub Actions)
 
-O app inteiro (API em `/api` + app do administrador em `/`) roda numa imagem Docker só. O caminho até o ar:
+O app inteiro (API em `/api` + app do administrador em `/`) roda numa imagem Docker só, no **Azure Container Apps**.
+Ninguém publica pelo portal: o **Terraform** cria a infraestrutura e o **pipeline** publica cada versão.
 
 ```text
-push na main ──► GitHub Actions: backend · frontend · notebook · docker   (testes)
-                         │ todos passaram?
-                         ▼
-                 job "Deploy (Render)": pede ao Render o deploy DESTE commit (Deploy Hook)
-                         │
-                         ▼
-                 espera /api/saude mostrar o commit novo ──► teste de fumaça no site publicado
+push / PR ──► GitHub Actions
+               ├─ Gitleaks (segredos) · Semgrep (SAST) · backend · frontend · notebook
+               │        qualquer falha barra o build
+               ├─ Imagem: docker compose build → Trivy → sobe a stack e testa /api/saude
+               │        na main: push para o Azure Container Registry (tag = SHA do commit)
+               └─ Deploy (só push na main, só se tudo passou):
+                        az containerapp update → espera /api/saude mostrar o commit → teste de fumaça
 ```
 
-- **Pull request:** só roda os testes (não publica nada).
-- **Push na `main`:** testes e, se todos passarem, deploy.
-- **Tag `v*`** (ex.: `v0.2.0`): também publica a imagem no GitHub Container Registry (`ghcr.io/<usuario>/<repo>`),
-  que serve para qualquer outro serviço de containers.
+- **Pull request:** roda tudo, menos o push da imagem e o deploy.
+- **Push na `main`:** tudo, e publica se todos os jobs passarem.
+- **Tag `v*`:** também publica a imagem no GitHub Container Registry.
 
-Arquivos: [`render.yaml`](../render.yaml) (o serviço no Render), [`.github/workflows/ci.yml`](../.github/workflows/ci.yml)
-(CI/CD) e [`Dockerfile`](../Dockerfile) (a imagem).
+Arquivos: [`infra/`](../infra/) (Terraform), [`scripts/bootstrap-azure.sh`](../scripts/bootstrap-azure.sh),
+[`.github/workflows/ci.yml`](../.github/workflows/ci.yml), [`Dockerfile`](../Dockerfile) e
+[`docker-compose.yml`](../docker-compose.yml).
 
-## Por que Render e não Vercel
+> **Por que um processo contínuo (e não funções serverless):** o Em Raízes guarda comandos, voos e o progresso do robô
+> **na memória de um processo**. Por isso o Container App roda com exatamente **1 réplica sempre ligada**.
 
-A Vercel roda Python como funções *serverless*: cada requisição pode cair numa instância nova. O Em Raízes guarda os
-comandos, o voo e o progresso do robô **na memória de um processo** e atualiza a chuva numa thread em segundo plano;
-numa função serverless isso se perde entre uma requisição e outra. O Render roda o container como um processo
-contínuo, que é o que o app precisa.
+## Pré-requisitos
 
-## Passo a passo (uma vez só)
-
-### 1. Código no GitHub
-
-Crie um repositório vazio no GitHub e envie o projeto (o `.env` fica de fora, está no `.gitignore`):
+Git (no Windows, use o **Git Bash** para todos os comandos), Docker Desktop, Azure CLI e Terraform 1.6 ou mais novo.
 
 ```bash
-git remote add origin https://github.com/<usuario>/em-raizes.git
+git --version && docker --version && az version && terraform version
+az login
+az account show --query "{nome:name, id:id}" -o table
 ```
+
+## 1. Preparar a assinatura e o state (uma vez só)
 
 ```bash
-git push -u origin main
+LOCATION=eastus2 bash scripts/bootstrap-azure.sh
 ```
 
-O CI roda sozinho. Enquanto o deploy não estiver configurado, o job "Deploy (Render)" só deixa um aviso e o CI fica
-verde.
+O script registra os provedores de recursos, cria o Storage Account do Terraform state (`rg-tfstate`) e gera
+`infra/backend.hcl`, que fica fora do Git.
 
-### 2. Gerar a chave das notificações (opcional)
+> **Azure for Students:** a assinatura só permite algumas regiões. `brazilsouth` é recusada com
+> `RequestDisallowedByAzure`. Use `eastus2` (ou consulte as permitidas com
+> `az policy assignment list --query "[].parameters.listOfAllowedLocations.value"`). Se o script falhar no meio,
+> apague o grupo antes de tentar outra região: `az group delete -n rg-tfstate --yes`.
 
-Sem ela o app funciona, só as notificações no celular ficam desligadas. Com o ambiente do projeto ativado:
+## 2. Variáveis do Terraform
 
 ```bash
-python -c "from em_raizes.operacoes.notificacoes import gerar_chave_privada as g; print(g())"
+cd infra
+cp terraform.tfvars.example terraform.tfvars   # NÃO vai para o Git
 ```
 
-Guarde o valor para o próximo passo. Não coloque no Git.
+Preencha `subscription_id`, `location = "eastus2"`, `alert_email` e `admin_senha` (12 caracteres ou mais).
+`openrouter_api_key` é opcional: sem ela, o Guardião roda em modo offline. O segredo JWT é gerado pelo Terraform.
 
-### 3. Criar o serviço no Render
+## 3. Registro de imagens e primeira imagem
 
-1. Entre em <https://render.com> com a conta do GitHub.
-2. **New → Blueprint** e escolha o repositório. O Render lê o `render.yaml` e mostra o serviço `em-raizes`.
-3. Preencha os valores que ele pedir:
+O Container App precisa de uma imagem que já exista, então o registro vem primeiro:
 
-   | Variável | Valor |
-   |---|---|
-   | `EM_RAIZES_ADMIN_SENHA` | senha forte do administrador (o site é público) |
-   | `OPENROUTER_API_KEY` | a chave do OpenRouter (conta gratuita basta) |
-   | `EM_RAIZES_VAPID_PRIVADA` | a chave do passo 2 (ou deixe vazio) |
-   | `EM_RAIZES_VAPID_CONTATO` | `mailto:` + um e-mail de contato (ex.: `mailto:equipe@exemplo.com`) |
+```bash
+terraform init -backend-config=backend.hcl
+terraform apply -target=azurerm_container_registry.acr
 
-   `EM_RAIZES_SEGREDO_JWT` é gerado pelo próprio Render; os modelos gratuitos e o modo produção já vêm no arquivo.
-4. **Apply**. O primeiro deploy começa na hora (o build leva alguns minutos). O endereço fica parecido com
-   `https://em-raizes.onrender.com` (o Render pode acrescentar um sufixo se o nome já existir).
-5. Abra o endereço e entre com `admin` e a senha que você definiu.
+ACR=$(terraform output -raw acr_name)
+cd ..
+az acr login -n $ACR
+docker build --build-arg EM_RAIZES_COMMIT=v1 -t $ACR.azurecr.io/em-raizes:v1 .
+docker push $ACR.azurecr.io/em-raizes:v1
+```
 
-### 4. Ligar o deploy automático (CD)
+Coloque essa imagem em `container_image` no `infra/terraform.tfvars`.
 
-1. No Render: serviço `em-raizes` → **Settings** → **Deploy Hook** → copie a URL (ela é um segredo).
-2. No GitHub: repositório → **Settings → Secrets and variables → Actions**:
-   - aba **Secrets** → *New repository secret*: nome `RENDER_DEPLOY_HOOK_URL`, valor = a URL do passo anterior;
-   - aba **Variables** → *New repository variable*: nome `APP_URL`, valor = o endereço do site (ex.:
-     `https://em-raizes.onrender.com`).
-3. Faça um push na `main` (ou rode o workflow de novo em **Actions**). O job "Deploy (Render)" deve terminar com
-   `No ar: <commit>` e `ok: Em Raízes ...`.
+## 4. Resto da infraestrutura
 
-O `render.yaml` usa `autoDeployTrigger: "off"`: o Render não publica sozinho a cada commit; quem publica é o CI, só
-depois dos testes, e sempre o commit que foi testado (`?ref=<commit>`).
+```bash
+cd infra
+terraform apply
+```
 
-## Bom saber
+Cria o ambiente e o app do Container Apps, a identidade gerenciada com `AcrPull`, Log Analytics, Application Insights,
+o teste de disponibilidade e os alertas. O output `app_url` é a URL pública. Se o primeiro apply falhar ao puxar a
+imagem, espere 1 a 2 minutos (a permissão leva um tempo para propagar) e rode de novo.
 
-- **Plano gratuito do Render:** o serviço "dorme" depois de um tempo sem acesso e acorda na próxima visita (a primeira
-  resposta demora). Como o estado fica na memória, ao acordar o app recomeça: voo inicial e histórico vazio. Para um
-  MVP de demonstração isso basta; o próximo passo seria um banco de dados. Confira os limites atuais do plano no site do
-  Render.
-- **Cota da IA:** o site, o chat de terminal e o notebook usam a mesma conta do OpenRouter (50 chamadas gratuitas por
-  dia). Quando acaba, o Guardião responde em modo offline até as 21h (horário de Brasília).
-- **Conferir o que está no ar:** `https://<seu-site>/api/saude` mostra a versão e o commit em execução.
-- **Trocar de serviço:** a imagem publicada no GHCR (tag `v*`) roda em Railway, Fly.io, Google Cloud Run ou Azure
-  Container Apps com as mesmas variáveis. Basta trocar o passo de deploy no workflow.
-- **Segurança:** só há um usuário (admin). Use senha forte, não coloque dados reais de moradores e nunca publique o
-  `.env`. Se a URL do Deploy Hook vazar, gere outra no Render (**Regenerate Hook**) e atualize o secret.
+A partir daqui, a imagem do app é trocada **só pelo pipeline**: o Terraform ignora mudanças nela.
+
+## 5. Ligar o GitHub Actions à Azure
+
+```bash
+SUB=$(az account show --query id -o tsv)
+MSYS_NO_PATHCONV=1 az ad sp create-for-rbac --name sp-github-emraizes --role Contributor \
+  --scopes /subscriptions/$SUB/resourceGroups/rg-emraizes --json-auth
+```
+
+> `MSYS_NO_PATHCONV=1` é necessário no Git Bash: sem ele, `/subscriptions/...` vira um caminho do Windows.
+
+O JSON impresso é uma **credencial**: não cole em chat nem em arquivo do repositório. Em
+**Settings → Secrets and variables → Actions**:
+
+| Tipo | Nome | Valor |
+|---|---|---|
+| Secret | `AZURE_CREDENTIALS` | o JSON inteiro |
+| Variable | `ACR_NAME` | `terraform output -raw acr_name` |
+| Variable | `RESOURCE_GROUP` | `rg-emraizes` |
+| Variable | `CONTAINER_APP` | `ca-emraizes` |
+
+> Em repositório de **conta pessoal**, só a dona do repo acessa Settings → Secrets; colaboradores não.
+> Se algum push na `main` rodou antes do secret existir, o deploy aparece como "pulado": abra essa execução e use
+> **Re-run all jobs**.
+
+## 6. Conferir
+
+Depois de um push na `main`, o job **Deploy** só fica verde quando `/api/saude` responde com o commit novo:
+
+```bash
+curl https://<app_url>/api/saude   # {"status":"ok","versao":"0.2.0","commit":"<sha do commit>"}
+```
+
+## Observabilidade
+
+- **Painel:** no portal, abra **Métricas** e fixe os quatro gráficos num painel: `Requests` (tráfego), CPU e memória
+  (saturação) do Container App, e duração e disponibilidade do teste do Application Insights (latência e erros).
+- **Alertas:** `alerta-pico-requisicoes-emraizes` (mais de 40 requisições em 5 min) e `alerta-indisponivel-emraizes`.
+  Para testar o primeiro:
+
+```bash
+URL=https://<app_url>
+for r in 1 2; do for i in $(seq 1 30); do curl -s -o /dev/null -w "%{http_code} " -X POST $URL/api/auth/login \
+  -H "Content-Type: application/json" -d '{"usuario":"admin","senha":"errada"}'; done; echo; done
+```
+
+Em 5 a 10 minutos o alerta aparece em **Azure Monitor → Alertas** e chega por e-mail. Neste ambiente, a métrica
+`Requests` não traz as dimensões de código HTTP; por isso não há alerta por 4xx/5xx.
+
+## Solução de problemas
+
+| Sintoma | Causa e solução |
+|---|---|
+| `failed to connect to the docker API ... dockerDesktopLinuxEngine` | Docker Desktop fechado: abra e espere "Engine running" |
+| `lookup registry-1.docker.io: no such host` | DNS do Docker: `wsl --shutdown`, reabra o Docker Desktop ou fixe `"dns": ["8.8.8.8"]` em Settings → Docker Engine |
+| Gitleaks acusa um valor de teste | Confirme que não é segredo e adicione o fingerprint ao `.gitleaksignore` |
+| Trivy barra a imagem com CVE "fixed" | Atualização do Debian ainda não está na imagem base: o `apt-get upgrade` do Dockerfile resolve no próximo build |
+
+## Depois da avaliação
+
+```bash
+cd infra && terraform destroy
+az ad sp delete --id $(az ad sp list --display-name sp-github-emraizes --query "[0].appId" -o tsv)
+az group delete -n rg-tfstate --yes
+```

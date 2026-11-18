@@ -1,7 +1,7 @@
 # 🌱 Em Raízes
 
 **App do administrador para um drone com IA e um robô jardineiro que plantam capim-vetiver e ajudam a prevenir deslizamentos em morros de comunidades.**
-Projeto do desafio **CitizenTech** (disciplina *Generative AI for Engineering*).
+Projeto do desafio **CitizenTech** (disciplinas *Generative AI for Engineering* e *Secure DevOps Tools & Cloud Computing*).
 
 > ⚠️ **MVP acadêmico com dados SIMULADOS.** Não existe drone nem robô físico ainda nessa versão e o índice de risco usa pesos ilustrativos.
 >
@@ -14,6 +14,22 @@ Projeto do desafio **CitizenTech** (disciplina *Generative AI for Engineering*).
 </p>
 
 ---
+
+## Ficha Técnica do MVP
+
+| | |
+|---|---|
+| **MVP no ar** | <https://ca-emraizes.jollysand-e662ba59.eastus2.azurecontainerapps.io> · versão em execução: [`/api/saude`](https://ca-emraizes.jollysand-e662ba59.eastus2.azurecontainerapps.io/api/saude) |
+| **Stack** | Python 3.12 + FastAPI (API) · React + TypeScript/Vite (PWA) · uma imagem Docker |
+| **Nuvem** | Microsoft Azure (Azure for Students) · região **East US 2** · resource group `rg-emraizes` |
+| **Execução** | Azure Container Apps (Consumption) · 1 réplica · 0,5 vCPU / 1 GiB · ingress só HTTPS, sem porta de administração |
+| **Imagens** | Azure Container Registry Basic · pull por identidade gerenciada (sem usuário admin) |
+| **Infraestrutura como código** | Terraform (`azurerm` 4.x) em [`infra/`](infra/) · state remoto num Storage Account (`rg-tfstate`) |
+| **CI/CD** | GitHub Actions ([`ci.yml`](.github/workflows/ci.yml)): Gitleaks · Semgrep · testes · build · Trivy · docker compose · deploy automático |
+| **Segredos** | GitHub Secrets (`AZURE_CREDENTIALS`) · secrets do Container App · `.env`/`terraform.tfvars` fora do Git |
+| **Observabilidade** | Azure Monitor (4 sinais de ouro) · Log Analytics · Application Insights (teste de disponibilidade) · alertas por e-mail |
+| **Custo estimado** | ≈ US$ 24/mês (detalhes na seção 6) |
+| **Disciplinas** | *Generative AI for Engineering* · *Secure DevOps Tools & Cloud Computing* |
 
 ## 1. Problema escolhido
 
@@ -188,34 +204,85 @@ cd frontend && npm run typecheck && npm test
 jupyter nbconvert --to notebook --execute --inplace notebooks/Aula09.3_Chat_Guardiao.ipynb
 ```
 
-## 6. CI/CD e deploy
+## 6. Secure DevOps: CI/CD, nuvem e observabilidade
+
+> Ninguém publica clicando em botão: toda mudança passa pelo pipeline, que barra segredo vazado e vulnerabilidade
+> antes de qualquer coisa chegar ao cidadão.
+
+### Container
 
 **Uma imagem só:** o [`Dockerfile`](Dockerfile) compila o frontend (Node) e o coloca dentro da imagem Python; o FastAPI
-serve a API em `/api` e o app em `/`. Em produção (`EM_RAIZES_AMBIENTE=producao`) o servidor **não sobe** sem
-`EM_RAIZES_ADMIN_SENHA` e `EM_RAIZES_SEGREDO_JWT`.
+serve a API em `/api` e o app em `/`. A imagem é multi-stage, roda como **usuário não root** (`uid 10001`), aplica as
+atualizações de segurança do Debian no build e não leva nenhum segredo (o [`.dockerignore`](.dockerignore) exclui `.env`
+e `.git`). Em produção (`EM_RAIZES_AMBIENTE=producao`) o servidor **não sobe** sem `EM_RAIZES_ADMIN_SENHA` e
+`EM_RAIZES_SEGREDO_JWT`.
 
 ```bash
-docker build -t em-raizes .
+cp .env.example .env          # preencha EM_RAIZES_ADMIN_SENHA e EM_RAIZES_SEGREDO_JWT
+docker compose up -d --build  # http://localhost:8000
+curl http://localhost:8000/api/saude
+docker compose down
 ```
 
-```bash
-docker run -p 8000:8000 --env-file .env em-raizes
-```
+O [`docker-compose.yml`](docker-compose.yml) sobe a mesma imagem de produção com `no-new-privileges` e `cap_drop: ALL`.
 
-**GitHub Actions** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) em todo *push* e *pull request*:
+### Pipeline (GitHub Actions)
 
-| Job | O que verifica |
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) roda em todo *push* e *pull request*:
+
+| Job | O que verifica | Barra o build? |
+|---|---|---|
+| Segredos (Gitleaks) | histórico completo do Git atrás de chaves e senhas | sim |
+| SAST (Semgrep) | código inseguro em Python, TypeScript, workflows e Terraform (`p/default`) | sim |
+| Backend | `ruff check`, `ruff format --check` e `pytest` | sim |
+| Frontend | `tsc` (tipos), `vitest` e `vite build` | sim |
+| Notebook | executa o notebook do começo ao fim em modo offline | só o deploy |
+| Imagem | `docker compose build`, **Trivy** (bloqueia HIGH/CRITICAL com correção), sobe a stack e testa `/api/saude`; na `main`, envia a imagem ao ACR | sim |
+| Deploy | só num *push* na `main` e só se **todos** os jobs passarem: atualiza o Container App para a imagem deste commit, espera `/api/saude` mostrar o commit e faz um teste de fumaça | — |
+
+As actions são fixadas por SHA de commit, e o workflow só tem permissão de leitura no repositório. Falsos positivos
+revisados do Gitleaks ficam em [`.gitleaksignore`](.gitleaksignore), identificados pelo fingerprint.
+
+### Infraestrutura (Terraform + Azure)
+
+Toda a nuvem é criada pelo Terraform em [`infra/`](infra/): resource group, Container Registry, identidade gerenciada
+(AcrPull), ambiente e app do Container Apps, Log Analytics, Application Insights, teste de disponibilidade e alertas.
+O `terraform.tfstate` fica num Storage Account remoto e o `terraform.tfvars` (com a senha do admin) nunca vai para o Git.
+O segredo JWT é gerado pelo próprio Terraform.
+
+Passo a passo completo, inclusive as pegadinhas do Azure for Students: [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
+### Observabilidade
+
+Painel *Em Raízes - Golden Signals* no Azure Monitor com os 4 sinais de ouro, e dois alertas por e-mail definidos em
+[`infra/monitoring.tf`](infra/monitoring.tf):
+
+| Sinal | Métrica |
 |---|---|
-| Backend | `ruff check`, `ruff format --check` e `pytest` |
-| Frontend | `tsc` (tipos), `vitest` e `vite build` |
-| Notebook | executa o notebook do começo ao fim em modo offline (numa cópia, sem mexer nas saídas versionadas) |
-| Docker | constrói a imagem, sobe o container e testa `/api/saude` (com o commit certo) e a página do app |
-| Publicação | ao criar uma tag `v*` (ex.: `v0.2.0`), publica a imagem no GitHub Container Registry |
-| Deploy (Render) | só num *push* na `main` e só se todos os jobs acima passarem: pede ao Render o deploy **deste commit**, espera `/api/saude` mostrá-lo e faz um teste de fumaça no site publicado |
+| Tráfego | `Requests` do Container App (soma por minuto) |
+| Saturação | uso de CPU e memória do Container App |
+| Latência | duração do teste de disponibilidade em `/api/saude` (São Paulo e Virgínia, a cada 5 min) |
+| Erros | % de sucesso do teste de disponibilidade |
 
-**Deploy (CD):** o serviço é descrito em [`render.yaml`](render.yaml) (Render, plano gratuito, imagem Docker). A Vercel
-não serve para este backend: ela roda funções *serverless*, e o app guarda o estado na memória de um processo contínuo.
-Passo a passo para colocar no ar (GitHub, Render, secrets do CI): [`docs/DEPLOY.md`](docs/DEPLOY.md).
+| Alerta | Condição |
+|---|---|
+| `alerta-pico-requisicoes-emraizes` | mais de 40 requisições em 5 min (uso normal: 0 a 3/min): força bruta ou varredura |
+| `alerta-indisponivel-emraizes` | disponibilidade do `/api/saude` abaixo de 90% em 15 min |
+
+Neste ambiente, a métrica `Requests` não expõe as dimensões de código HTTP, por isso os alertas usam o total de
+requisições e o teste externo, e não 4xx/5xx.
+
+### Custo estimado (Azure, East US, preço de lista)
+
+| Item | US$/mês |
+|---|---|
+| Container Apps (0,5 vCPU + 1 GiB sempre ligado, já descontada a cota gratuita, taxa ociosa) | ≈ 10,05 |
+| Container Registry Basic | ≈ 5,01 |
+| Teste de disponibilidade (2 locais, a cada 5 min) | ≈ 8,64 |
+| Log Analytics, App Insights (dentro dos 5 GB gratuitos), alertas e storage do state | ≈ 0,25 |
+| **Total** | **≈ 24** |
+
+Se a CPU ficasse ativa o tempo todo, o total chegaria a cerca de US$ 47. Depois da avaliação: `terraform destroy`.
 
 ## 7. Notebook (entrega obrigatória)
 
@@ -414,14 +481,16 @@ instalável, imagem Docker e app web `em-raizes`, comandos `em-raizes-api` e `em
 │   │   ├── ia/                     # Guardião, cliente OpenRouter, prompts, manual
 │   │   ├── api/                    # FastAPI e login
 │   │   └── config.py
-│   └── tests/                      # 103 testes (pytest)
+│   └── tests/                      # 108 testes (pytest)
 ├── frontend/                       # app do administrador (React + TypeScript, PWA)
 │   └── src/{telas,componentes,api,hooks,util}
 ├── notebooks/Aula09.3_Chat_Guardiao.ipynb   # entrega obrigatória (notebook da aula modificado)
 ├── docs/                           # DEPLOY.md, evidencias/ e dados/
 ├── .github/workflows/ci.yml
 ├── Dockerfile
-├── render.yaml                     # serviço no Render (deploy pelo CI)
+├── infra/                          # Terraform da Azure (app, registro, monitoramento, alertas)
+├── scripts/bootstrap-azure.sh      # prepara a assinatura e o storage do Terraform state
+├── docker-compose.yml              # stack local com a imagem de produção
 ├── requirements.txt                # instala o backend + testes + notebook
 └── .env.example
 ```
